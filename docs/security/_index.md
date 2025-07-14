@@ -124,6 +124,12 @@ here instead of single IPs.
 allowed hosts = 127.0.0.1, ::1, 192.168.56.0/24
 ```
 
+**Warning:** When using hostnames in `allowed hosts`, SNClient is vulnerable to
+DNS rebinding attacks. To mitigate this, you can disable the DNS cache for
+allowed hosts by setting `cache allowed hosts = false` in your configuration.
+This will cause SNClient to perform a DNS lookup for every request, which may
+have a performance impact.
+
 ### Hashed Password
 
 SNClient supports using hashed passwords so you do not have clear text passwords

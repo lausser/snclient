@@ -30,6 +30,19 @@ type winProcess struct {
 }
 
 func (l *CheckProcess) fetchProcs(_ context.Context, check *CheckData) error {
+	processData, err := l.getProcs()
+	if err != nil {
+		return err
+	}
+
+	for i := range processData {
+		l.addProc(processData[i], check)
+	}
+
+	return nil
+}
+
+func (l *CheckProcess) getProcs() ([]winProcess, error) {
 	processData := []winProcess{}
 	query := `
 		Select
@@ -51,51 +64,56 @@ func (l *CheckProcess) fetchProcs(_ context.Context, check *CheckData) error {
 		From
 			Win32_Process
 	`
-	err := wmi.QueryDefaultRetry(query, &processData)
+	where := ""
+	if len(l.processes) > 0 && !slices.Contains(l.processes, "*") {
+		where = ` Where `
+		for i, p := range l.processes {
+			if i > 0 {
+				where += " or "
+			}
+			where += fmt.Sprintf("Name = '%s'", p)
+		}
+	}
+
+	err := wmi.QueryDefaultRetry(query+where, &processData)
 	if err != nil {
-		return fmt.Errorf("wmi query failed: %s", err.Error())
+		return nil, fmt.Errorf("wmi query failed: %s", err.Error())
 	}
 
-	for i := range processData {
-		proc := processData[i]
+	return processData, nil
+}
 
-		if len(l.processes) > 0 && !slices.Contains(l.processes, strings.ToLower(proc.Name)) && !slices.Contains(l.processes, "*") {
-			continue
-		}
-
-		state := "stopped"
-		if proc.ProcessId > 0 && proc.ThreadCount > 0 {
-			state = "started"
-		}
-
-		cpu := float64(0)
-		cpuSec := float64(proc.UserModeTime+proc.KernelModeTime) / 1e7 // values are multiple of 100ns
-		age := time.Since(proc.CreationDate).Seconds()
-		if age > 0 {
-			cpu = (cpuSec / age) * 100
-		}
-
-		check.listData = append(check.listData, map[string]string{
-			"process":          proc.Name,
-			"state":            state,
-			"command_line":     proc.CommandLine,
-			"creation":         fmt.Sprintf("%d", proc.CreationDate.Unix()),
-			"exe":              proc.Name,
-			"filename":         proc.ExecutablePath,
-			"handles":          fmt.Sprintf("%d", proc.HandleCount),
-			"kernel":           fmt.Sprintf("%f", float64(proc.KernelModeTime)/1e7), // values are multiple of 100ns
-			"pagefile":         fmt.Sprintf("%d", proc.PageFileUsage),
-			"peak_pagefile":    fmt.Sprintf("%d", proc.PeakPageFileUsage),
-			"peak_virtual":     fmt.Sprintf("%d", proc.PeakVirtualSize),
-			"peak_working_set": fmt.Sprintf("%d", proc.PeakWorkingSetSize),
-			"pid":              fmt.Sprintf("%d", proc.ProcessId),
-			"user":             fmt.Sprintf("%f", float64(proc.UserModeTime)/1e7), // values are multiple of 100ns
-			"virtual":          fmt.Sprintf("%d", proc.VirtualSize),
-			"working_set":      fmt.Sprintf("%d", proc.WorkingSetSize),
-			"rss":              fmt.Sprintf("%d", proc.WorkingSetSize),
-			"cpu":              fmt.Sprintf("%f", cpu),
-		})
+func (l *CheckProcess) addProc(proc winProcess, check *CheckData) {
+	state := "stopped"
+	if proc.ProcessId > 0 && proc.ThreadCount > 0 {
+		state = "started"
 	}
 
-	return nil
+	cpu := float64(0)
+	cpuSec := float64(proc.UserModeTime+proc.KernelModeTime) / 1e7 // values are multiple of 100ns
+	age := time.Since(proc.CreationDate).Seconds()
+	if age > 0 {
+		cpu = (cpuSec / age) * 100
+	}
+
+	check.listData = append(check.listData, map[string]string{
+		"process":          proc.Name,
+		"state":            state,
+		"command_line":     proc.CommandLine,
+		"creation":         fmt.Sprintf("%d", proc.CreationDate.Unix()),
+		"exe":              proc.Name,
+		"filename":         proc.ExecutablePath,
+		"handles":          fmt.Sprintf("%d", proc.HandleCount),
+		"kernel":           fmt.Sprintf("%f", float64(proc.KernelModeTime)/1e7), // values are multiple of 100ns
+		"pagefile":         fmt.Sprintf("%d", proc.PageFileUsage),
+		"peak_pagefile":    fmt.Sprintf("%d", proc.PeakPageFileUsage),
+		"peak_virtual":     fmt.Sprintf("%d", proc.PeakVirtualSize),
+		"peak_working_set": fmt.Sprintf("%d", proc.PeakWorkingSetSize),
+		"pid":              fmt.Sprintf("%d", proc.ProcessId),
+		"user":             fmt.Sprintf("%f", float64(proc.UserModeTime)/1e7), // values are multiple of 100ns
+		"virtual":          fmt.Sprintf("%d", proc.VirtualSize),
+		"working_set":      fmt.Sprintf("%d", proc.WorkingSetSize),
+		"rss":              fmt.Sprintf("%d", proc.WorkingSetSize),
+		"cpu":              fmt.Sprintf("%f", cpu),
+	})
 }

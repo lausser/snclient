@@ -111,7 +111,16 @@ func (l *CheckProcess) buildConditionAlias() map[string]map[string]string {
 	}
 }
 
-func (l *CheckProcess) Check(ctx context.Context, _ *Agent, check *CheckData, _ []Argument) (*CheckResult, error) {
+func (l *CheckProcess) Check(ctx context.Context, snc *Agent, check *CheckData, _ []Argument) (*CheckResult, error) {
+	if len(l.processes) > 0 {
+		if !checkNastyCharacters(snc.config.Section("/settings/default"), "", l.processes) {
+			return &CheckResult{
+				State:  CheckExitUnknown,
+				Output: "check_process arguments contain illegal characters, please check the 'nasty characters' settings.",
+			}, nil
+		}
+	}
+
 	// make process arg lowercase
 	for i := range l.processes {
 		l.processes[i] = strings.ToLower(l.processes[i])

@@ -87,7 +87,7 @@ var DefaultListenTCPConfig = ConfigData{
 	"certificate":         "${certificate-path}/server.crt",
 	"certificate key":     "${certificate-path}/server.key",
 	"timeout":             "30",
-	"use ssl":             "0",
+	"use ssl":             "1",
 }
 
 var DefaultListenHTTPConfig = ConfigData{

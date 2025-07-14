@@ -142,13 +142,14 @@ func (a *AllowedHost) Contains(addr netip.Addr, useCaching bool) bool {
 	case a.IP != nil:
 		return a.IP.Compare(addr) == 0
 	case a.HostName != nil:
-		resolved := a.ResolveCache
-
-		if useCaching || len(a.ResolveCache) == 0 {
-			resolved = a.resolveCache()
-			if useCaching {
-				a.ResolveCache = resolved
+		var resolved []netip.Addr
+		if useCaching {
+			if len(a.ResolveCache) == 0 {
+				a.ResolveCache = a.resolveCache()
 			}
+			resolved = a.ResolveCache
+		} else {
+			resolved = a.resolveCache()
 		}
 
 		for _, i := range resolved {
